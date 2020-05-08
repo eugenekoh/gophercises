@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 )
 
 // QuestionHandler manages quiz process
@@ -38,7 +39,7 @@ func (q *QuestionHandler) HandleQuestion(p Problem) error {
 // PrintResult to output user quiz results
 func (q *QuestionHandler) PrintResult() {
 
-	fmt.Printf("Correct answers : %v\n", q.correctAnswers)
+	fmt.Printf("\nCorrect answers : %v\n", q.correctAnswers)
 	fmt.Printf("Total questions : %v\n", q.totalQuestions)
 }
 
@@ -55,8 +56,10 @@ func exit(msg string) {
 
 func main() {
 
-	// Get filename via flags
+	// Flags
 	csvName := flag.String("csv", "problems.csv", "a csv file in the format of `question, answer` ")
+	duration := flag.Int("time", 5, "duration of quiz in seconds")
+
 	flag.Parse()
 
 	// Open file
@@ -67,8 +70,13 @@ func main() {
 
 	// Parse csv
 	reader := csv.NewReader(csvFile)
-
 	questionHandler := QuestionHandler{}
+
+	// Set timer
+	time.AfterFunc(time.Duration(*duration)*time.Second, func() {
+		questionHandler.PrintResult()
+		os.Exit(1)
+	})
 
 	// Iterate through records
 	for {
@@ -88,6 +96,4 @@ func main() {
 
 		questionHandler.HandleQuestion(problem)
 	}
-
-	questionHandler.PrintResult()
 }
