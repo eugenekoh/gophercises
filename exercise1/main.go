@@ -3,13 +3,12 @@ package main
 import (
 	"bufio"
 	"encoding/csv"
+	"flag"
 	"fmt"
 	"io"
-	"log"
 	"os"
+	"strings"
 )
-
-const csvName = "problems.csv"
 
 // QuestionHandler manages quiz process
 type QuestionHandler struct {
@@ -18,20 +17,18 @@ type QuestionHandler struct {
 }
 
 // HandleQuestion processes csv lines
-func (q *QuestionHandler) HandleQuestion(s []string) error {
-
-	question, answer := s[0], s[1]
+func (q *QuestionHandler) HandleQuestion(p Problem) error {
 
 	// Print question and get answer
-	fmt.Printf("%v : ", question)
+	q.totalQuestions++
+	fmt.Printf("Problem #%d , %s : ", q.totalQuestions, p.question)
 
 	scanner := bufio.NewScanner(os.Stdin)
 	scanner.Scan()
 	userAnswer := scanner.Text()
 
 	// Update scores
-	q.totalQuestions++
-	if userAnswer == answer {
+	if userAnswer == p.answer {
 		q.correctAnswers++
 	}
 
@@ -45,13 +42,27 @@ func (q *QuestionHandler) PrintResult() {
 	fmt.Printf("Total questions : %v\n", q.totalQuestions)
 }
 
+// Problem is a data structure that holds a question and answer
+type Problem struct {
+	question string
+	answer   string
+}
+
+func exit(msg string) {
+	fmt.Println(msg)
+	os.Exit(1)
+}
+
 func main() {
 
-	// Open file
-	csvFile, err := os.Open(csvName)
+	// Get filename via flags
+	csvName := flag.String("csv", "problems.csv", "a csv file in the format of `question, answer` ")
+	flag.Parse()
 
+	// Open file
+	csvFile, err := os.Open(*csvName)
 	if err != nil {
-		log.Fatalln("Error opening csvfile", err)
+		exit(fmt.Sprintf("Error opening csvfile : %s\n", *csvName))
 	}
 
 	// Parse csv
@@ -61,17 +72,21 @@ func main() {
 
 	// Iterate through records
 	for {
-
-		record, err := reader.Read()
+		line, err := reader.Read()
 		if err == io.EOF {
 			break
 		}
 
 		if err != nil {
-			log.Fatalln("Error reading csvfile", err)
+			exit("Error processing csv file")
 		}
 
-		questionHandler.HandleQuestion(record)
+		problem := Problem{
+			question: line[0],
+			answer:   strings.TrimSpace(line[1]),
+		}
+
+		questionHandler.HandleQuestion(problem)
 	}
 
 	questionHandler.PrintResult()
