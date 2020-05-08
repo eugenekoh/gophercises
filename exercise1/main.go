@@ -18,29 +18,39 @@ type QuestionHandler struct {
 }
 
 // HandleQuestion processes csv lines
-func (q *QuestionHandler) HandleQuestion(p Problem) error {
+func (q *QuestionHandler) HandleQuestion(p Problem, ch <-chan time.Time) error {
 
 	// Print question and get answer
 	q.totalQuestions++
 	fmt.Printf("Problem #%d , %s : ", q.totalQuestions, p.question)
 
-	scanner := bufio.NewScanner(os.Stdin)
-	scanner.Scan()
-	userAnswer := scanner.Text()
+	answerCh := make(chan string)
 
-	// Update scores
-	if userAnswer == p.answer {
-		q.correctAnswers++
+	go func() {
+		scanner := bufio.NewScanner(os.Stdin)
+		scanner.Scan()
+		answerCh <- scanner.Text()
+	}()
+
+	select {
+	case <-ch:
+		q.printResult()
+	case answer := <-answerCh:
+		// Update scores
+		if answer == p.answer {
+			q.correctAnswers++
+		}
 	}
 
 	return nil
 }
 
-// PrintResult to output user quiz results
-func (q *QuestionHandler) PrintResult() {
+func (q *QuestionHandler) printResult() {
 
 	fmt.Printf("\nCorrect answers : %v\n", q.correctAnswers)
 	fmt.Printf("Total questions : %v\n", q.totalQuestions)
+	os.Exit(0)
+
 }
 
 // Problem is a data structure that holds a question and answer
@@ -73,10 +83,7 @@ func main() {
 	questionHandler := QuestionHandler{}
 
 	// Set timer
-	time.AfterFunc(time.Duration(*duration)*time.Second, func() {
-		questionHandler.PrintResult()
-		os.Exit(1)
-	})
+	timer := time.NewTimer(time.Duration(*duration) * time.Second)
 
 	// Iterate through records
 	for {
@@ -94,6 +101,6 @@ func main() {
 			answer:   strings.TrimSpace(line[1]),
 		}
 
-		questionHandler.HandleQuestion(problem)
+		questionHandler.HandleQuestion(problem, timer.C)
 	}
 }
