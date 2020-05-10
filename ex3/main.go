@@ -3,11 +3,10 @@ package main
 import (
 	"encoding/json"
 	"flag"
-	"fmt"
 	"html/template"
-	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 )
 
@@ -19,7 +18,10 @@ func main() {
 	flag.Parse()
 
 	// initialize data structure
-	storyArcs := parseJSON(*fileName)
+	story, err := parseJSON(*fileName)
+	if err != nil {
+		panic(err)
+	}
 
 	// load template
 	tpl, err := template.ParseFiles(*templatePath)
@@ -28,9 +30,9 @@ func main() {
 	}
 
 	handler := cyoaHandler{
-		storyArcs: storyArcs,
-		tpl:       tpl,
-		startArc:  *startArc,
+		story:    story,
+		tpl:      tpl,
+		startArc: *startArc,
 	}
 
 	http.Handle("/", handler)
@@ -38,6 +40,9 @@ func main() {
 	log.Fatal(http.ListenAndServe(":8080", nil))
 
 }
+
+// Story is a map collection of StoryArc
+type Story map[string]StoryArc
 
 // StoryArc is a data structure that contains info about current story arc
 type StoryArc struct {
@@ -52,34 +57,40 @@ type Options struct {
 	NextArc string `json:"arc"`
 }
 
-func parseJSON(fileName string) map[string]StoryArc {
-	jsonString, err := ioutil.ReadFile(fileName)
+func parseJSON(fileName string) (Story, error) {
+	file, err := os.Open(fileName)
+
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	storyArcs := map[string]StoryArc{}
+	defer file.Close()
 
-	json.Unmarshal(jsonString, &storyArcs)
+	story := Story{}
 
-	return storyArcs
+	d := json.NewDecoder(file)
+	err = d.Decode(&story)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return story, nil
 }
 
 type cyoaHandler struct {
-	storyArcs map[string]StoryArc
-	tpl       *template.Template
-	startArc  string
+	story    Story
+	tpl      *template.Template
+	startArc string
 }
 
 func (h cyoaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	storyArcID := strings.TrimLeft(r.URL.Path, "/")
-	storyArc, ok := h.storyArcs[storyArcID]
-	fmt.Println(storyArcID)
+	storyArc, ok := h.story[storyArcID]
 
 	if !ok {
-		storyArc = h.storyArcs[h.startArc]
+		storyArc = h.story[h.startArc]
 	}
 
-	fmt.Println(storyArc)
-	h.tpl.Execute(w, storyArc)
+	.tpl.Execute(w, storyArc)
 }
